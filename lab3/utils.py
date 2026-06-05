@@ -6,14 +6,18 @@ from dataclasses import dataclass
 # tx_hashes     -> list[bytes]
 # txs_hash      -> single bytes commitment -> sha256(tx1 + tx2 + ... + txn)
 
+
 def sha256(data: bytes) -> bytes:
     return hashlib.sha256(data).digest()
+
 
 def u64_be(value: int) -> bytes:
     return value.to_bytes(8, "big")
 
+
 def u32_be(value: int) -> bytes:
     return value.to_bytes(4, "big")
+
 
 @dataclass
 class Transaction:
@@ -23,15 +27,11 @@ class Transaction:
     signature: bytes
 
     def tx_hash(self) -> bytes:
-        blob = (
-            self.sender_key
-            + self.data
-            + u64_be(self.timestamp)
-            + self.signature
-        )
+        blob = self.sender_key + self.data + u64_be(self.timestamp) + self.signature
 
         return sha256(blob)
-    
+
+
 @dataclass
 class BlockHeader:
     prev_hash: bytes
@@ -58,7 +58,8 @@ class BlockHeader:
         assert len(packed) == 84
 
         return sha256(packed)
-    
+
+
 @dataclass
 class Block:
     header: BlockHeader
@@ -78,12 +79,14 @@ class Block:
             return False
 
         return True
-    
+
+
 def compute_txs_hash(tx_hashes: list[bytes]) -> bytes:
     if len(tx_hashes) == 0:
         return sha256(b"")
 
     return sha256(b"".join(tx_hashes))
+
 
 def count_leading_zero_bits(data: bytes) -> int:
     total = 0
@@ -104,8 +107,10 @@ def count_leading_zero_bits(data: bytes) -> int:
 
     return total
 
+
 def valid_pow(block_hash: bytes, difficulty: int) -> bool:
     return count_leading_zero_bits(block_hash) >= difficulty
+
 
 def mine_block(header: BlockHeader) -> bytes:
     nonce = 0
@@ -120,4 +125,37 @@ def mine_block(header: BlockHeader) -> bytes:
 
         nonce += 1
 
+
+class Mempool:
+    def __init__(self):
+        self.transactions: dict[bytes, Transaction] = {}
+
+    def add_transaction(self, tx: Transaction):
+        """
+        Add transaction to mempool.
+        Returns the transaction hash.
+        """
+        tx_hash = tx.tx_hash()
+
+        if tx_hash in self.transactions:
+            print("Transaction already in mempool")
+            return
+
+        self.transactions[tx_hash] = tx
+
+    def remove_transaction(self, tx_hash: bytes):
+        self.transactions.pop(tx_hash, None)
+
+    def remove_multiple_transactions(self, transactions: list[Transaction]) -> None:
+        """
+        Remove multiple transactions at once that were included in a mined/appended block.
+        """
+        for tx in transactions:
+            self.transactions.pop(tx.tx_hash(), None)
+
+    def get_transactions(self) -> list[Transaction]:
+        """
+        Return current mempool transactions as a list.
+        """
+        return list(self.transactions.values())
 

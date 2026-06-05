@@ -1,16 +1,28 @@
-from utils import (
-    Transaction,
+# from utils import (
+#     Transaction,
+#     BlockHeader,
+#     compute_txs_hash,
+#     count_leading_zero_bits,
+#     mine_block,
+#     valid_pow,
+#     sha256
+# )
+from chain.crypto import sha256
+from chain.transaction import Transaction
+from chain.block import (
     BlockHeader,
     compute_txs_hash,
-    count_leading_zero_bits,
-    mine_block,
-    valid_pow,
-    sha256
 )
+from chain.pow import (
+    count_leading_zero_bits,
+    valid_pow,
+)
+from chain.miner import mine_block
 
 # ------------------------
 # Transaction tests
 # ------------------------
+
 
 def test_tx_hash_is_32_bytes():
     tx = Transaction(
@@ -29,6 +41,7 @@ def test_tx_hash_is_32_bytes():
 # Commitment tests
 # ------------------------
 
+
 def test_empty_commitment():
     assert compute_txs_hash([]) == sha256(b"")
 
@@ -36,6 +49,7 @@ def test_empty_commitment():
 # ------------------------
 # Block tests
 # ------------------------
+
 
 def test_header_is_84_bytes():
     header = BlockHeader(
@@ -55,6 +69,7 @@ def test_header_is_84_bytes():
 # PoW tests
 # ------------------------
 
+
 def test_leading_zero_bits():
     assert count_leading_zero_bits(b"\x00") == 8
     assert count_leading_zero_bits(b"\x00\x00") == 16
@@ -70,7 +85,14 @@ def test_mining():
         nonce=0,
     )
 
-    h = mine_block(header)
+    block = mine_block(
+        header.prev_hash,
+        [],
+        header.timestamp,
+        header.difficulty,
+    )
 
-    assert valid_pow(h, 12)
-
+    assert valid_pow(
+        block.header.block_hash(),
+        block.header.difficulty,
+    )
