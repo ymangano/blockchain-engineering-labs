@@ -50,3 +50,18 @@ class BlockResponsePayload(VariablePayload):
         "tx_hashes",
     ]
     format_list = ["q", "varlenH", "varlenH", "q", "q", "q", "varlenH", "varlenH"]
+
+
+@vp_compile
+class TransactionBroadcastPayload(VariablePayload):
+    """
+    Internal teammate message used to propagate a transaction
+    through our blockchain community.
+
+    Same transaction fields as SubmitTransactionPayload
+    """
+    msg_id = 7
+
+    names = ["sender_key", "data", "timestamp", "signature"]
+    format_list = ["varlenH", "varlenH", "q", "varlenH"]
+

@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import time as time_module
+import threading
 
 from ipv8.community import *
 from ipv8.configuration import (
@@ -15,15 +16,24 @@ from ipv8_service import IPv8
 from config import *
 from registration.registration_community import LabRegistrationCommunity
 from blockchain_community import BlockchainCommunity
-from chain.blockchain import Blockchain
-from chain.mempool import Mempool
-from chain.miner import Miner
+from chain.miner import Miner, MinerThread
 from chain.transaction import Transaction
 
 import argparse
-parser = argparse.ArgumentParser(description="Simple argparse example")
-parser.add_argument("--register", action="store_true", help="Whether to register with the lab server (required for lab 3)")
+
+parser = argparse.ArgumentParser(description="Client for Lab 3: Blockchain")
+parser.add_argument(
+    "--register",
+    action="store_true",
+    help="Whether to register with the lab server (required for lab 3)",
+)
+parser.add_argument(
+    "--test",
+    action="store_true",
+    help="Makes local blocks with fake transactions, and mines them. Useful for testing the mining and block validation logic without needing to connect to other peers.",
+)
 args = parser.parse_args()
+
 
 def init_ipv8():
     builder = ConfigBuilder().clear_keys().clear_overlays()
@@ -66,10 +76,39 @@ def init_ipv8():
 def create_dummy_transaction(public_key: bytes) -> Transaction:
     return Transaction(
         sender_key=public_key,
-        data=os.urandom(32),      # random payload
+        data=os.urandom(32),  # random payload
         timestamp=int(time_module.time()),
-        signature=os.urandom(64), # fake signature for now
+        signature=os.urandom(64),  # fake signature for now
     )
+
+
+async def test_mining(blockchain_community: BlockchainCommunity):
+    start_height = blockchain_community.blockchain.height()
+
+    print(f"Starting test at height {start_height}")
+
+    for i in range(3):
+        tx1 = create_dummy_transaction(
+            blockchain_community.my_peer.public_key.key_to_bin()
+        )
+        tx2 = create_dummy_transaction(
+            blockchain_community.my_peer.public_key.key_to_bin()
+        )
+
+        blockchain_community.blockchain.mempool.add_transaction(tx1)
+        blockchain_community.blockchain.mempool.add_transaction(tx2)
+
+        print(f"[{i}] Added tx {tx1.tx_hash().hex()[:16]}...")
+        print(f"[{i}] Added tx {tx2.tx_hash().hex()[:16]}...")
+
+        while blockchain_community.blockchain.height() == start_height + i:
+            await asyncio.sleep(0.5)
+
+        new_height = blockchain_community.blockchain.height()
+        print(f"New block mined! Height = {new_height}")
+
+        blockchain_community.blockchain.print_chain()
+
 
 async def main():
     ipv8 = init_ipv8()
@@ -83,29 +122,25 @@ async def main():
     public_bytes = my_peer.public_key.key_to_bin()
     print(f"Connecting With Public Key: {public_bytes.hex()}")
 
-    miner_node = Miner(blockchain_community.blockchain, blockchain_community.mempool)
-
-    # make a thread , that every MINE_BLOCK_PER_SECONDS mines a block. And sends it to the others. 
-    # await miner_node.mine_block() 
-
-    while True:
-        tx = create_dummy_transaction(public_bytes)
-        blockchain_community.mempool.add_transaction(tx)
-        print(f"Added tx {tx.tx_hash().hex()[:16]}...")
-
-        block = await miner_node.mine_block()
-        print(f"Mined a new block with hash: {block.header.block_hash().hex()}")
-        blockchain_community.blockchain.print_chain()
-
-        await asyncio.sleep(MINE_BLOCK_PER_SECONDS)
-
     try:
+        # Thread our miner keeps running and mines blocks every MINE_BLOCK_PER_SECONDS seconds, if a new block comes in it stops mining and that block is added to the blockchain. THen it will wait again 15 seconds and start mining again.
+        thread = threading.Thread(
+            target=blockchain_community.miner_thread.run, daemon=True
+        )
+
+        if args.test:
+            thread.start()
+            await test_mining(blockchain_community)
+
         await blockchain_community.find_teammates()
 
         if args.register:
             registration_community = ipv8.get_overlay(LabRegistrationCommunity)
             await registration_community.find_server()
             registration_community.register_blockchain()
+
+        if not args.test:
+            thread.start()
 
         # await asyncio.sleep(0.1)
         await run_forever()

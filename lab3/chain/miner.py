@@ -4,6 +4,8 @@ from chain.blockchain import Blockchain
 from chain.mempool import Mempool
 from config import BLOCK_DIFFICULTY, HASH_SIZE
 import time as time_module
+import threading
+
 
 class Miner:
     """
@@ -18,11 +20,13 @@ class Miner:
     This class only has one method, mine_block, which returns a full valid Block.
     """
 
-    def __init__(self, blockchain: Blockchain, mempool: Mempool):
+    def __init__(self, blockchain: Blockchain):
         self.blockchain: Blockchain = blockchain
-        self.mempool: Mempool = mempool
+        self.mempool: Mempool = self.blockchain.mempool
 
-    async def mine_block(self) -> Block:
+        self.stop_event = threading.Event()
+
+    def mine_block(self) -> Block | None:
         """
         Mine a new block.
 
@@ -55,6 +59,10 @@ class Miner:
         )
 
         while True:
+            if self.stop_event.is_set():
+                print("Mining stopped due to new block arrival.\n")
+                return None
+
             header.nonce = nonce
 
             block = Block(
@@ -67,3 +75,25 @@ class Miner:
                 return block
 
             nonce += 1
+
+
+class MinerThread:
+
+    def __init__(self, miner: Miner, interval: int):
+        self.miner = miner
+        self.interval = interval
+
+    def run(self):
+        while True:
+
+            time_module.sleep(self.interval)
+
+            self.miner.stop_event.clear()
+
+            block = self.miner.mine_block()
+
+            if block:
+                print("Mined:", block.header.block_hash().hex())
+                self.miner.blockchain.print_chain()
+
+            

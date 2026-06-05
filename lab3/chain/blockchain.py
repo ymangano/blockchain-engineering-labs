@@ -1,3 +1,5 @@
+import threading
+
 from chain.block import Block, create_genesis_block, BlockHeader
 from chain.mempool import Mempool
 from chain.transaction import Transaction
@@ -19,6 +21,7 @@ class Blockchain:
         self.chain: list[Block] = [create_genesis_block()]
 
         self.mempool: Mempool = Mempool()
+        self.lock = threading.Lock()
 
     # -------------------------------------------------------------------------
     # Basic chain info
@@ -30,7 +33,8 @@ class Blockchain:
 
         Genesis block has height 0.
         """
-        return len(self.chain) - 1
+        with self.lock:
+            return len(self.chain) - 1
 
     def tip(self) -> Block:
         """
@@ -42,16 +46,18 @@ class Blockchain:
         """
         Return hash of latest block.
         """
-        return self.tip().header.block_hash()
+        with self.lock:
+            return self.tip().header.block_hash()
 
     def get_block(self, height: int) -> Block | None:
         """
         Return block at height, or None if height is invalid.
         """
-        if height < 0 or height >= len(self.chain):
-            return None
+        with self.lock:
+            if height < 0 or height >= len(self.chain):
+                return None
 
-        return self.chain[height]
+            return self.chain[height]
 
     # -------------------------------------------------------------------------
     # Block validation / appending
@@ -84,10 +90,11 @@ class Blockchain:
             True if appended
             False otherwise
         """
-        if not self.can_append_block(block):
-            return False
+        with self.lock:
+            if not self.can_append_block(block):
+                return False
 
-        self.chain.append(block)
+            self.chain.append(block)
 
         # Remove included transactions from mempool, if we had them.
         self.mempool.remove_multiple_transactions(block.transactions)
