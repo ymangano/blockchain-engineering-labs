@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import os
+import time as time_module
 
 from ipv8.community import *
 from ipv8.configuration import (
@@ -13,6 +15,10 @@ from ipv8_service import IPv8
 from config import *
 from registration.registration_community import LabRegistrationCommunity
 from blockchain_community import BlockchainCommunity
+from chain.blockchain import Blockchain
+from chain.mempool import Mempool
+from chain.miner import Miner
+from chain.transaction import Transaction
 
 import argparse
 parser = argparse.ArgumentParser(description="Simple argparse example")
@@ -57,6 +63,14 @@ def init_ipv8():
     return ipv8
 
 
+def create_dummy_transaction(public_key: bytes) -> Transaction:
+    return Transaction(
+        sender_key=public_key,
+        data=os.urandom(32),      # random payload
+        timestamp=int(time_module.time()),
+        signature=os.urandom(64), # fake signature for now
+    )
+
 async def main():
     ipv8 = init_ipv8()
     await ipv8.start()
@@ -68,6 +82,22 @@ async def main():
     my_peer = blockchain_community.my_peer
     public_bytes = my_peer.public_key.key_to_bin()
     print(f"Connecting With Public Key: {public_bytes.hex()}")
+
+    miner_node = Miner(blockchain_community.blockchain, blockchain_community.mempool)
+
+    # make a thread , that every MINE_BLOCK_PER_SECONDS mines a block. And sends it to the others. 
+    # await miner_node.mine_block() 
+
+    while True:
+        tx = create_dummy_transaction(public_bytes)
+        blockchain_community.mempool.add_transaction(tx)
+        print(f"Added tx {tx.tx_hash().hex()[:16]}...")
+
+        block = await miner_node.mine_block()
+        print(f"Mined a new block with hash: {block.header.block_hash().hex()}")
+        blockchain_community.blockchain.print_chain()
+
+        await asyncio.sleep(MINE_BLOCK_PER_SECONDS)
 
     try:
         await blockchain_community.find_teammates()

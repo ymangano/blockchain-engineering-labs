@@ -1,6 +1,9 @@
 from ipv8.community import Community
 from ipv8.lazy_community import lazy_wrapper
 import asyncio
+from chain.blockchain import Blockchain
+from chain.mempool import Mempool
+
 
 from payloads import (
     SubmitTransactionPayload,
@@ -26,6 +29,9 @@ class BlockchainCommunity(Community):
 
         self.darian_peer = None
         self.jayran_peer = None
+
+        self.blockchain = Blockchain()
+        self.mempool = Mempool()
 
         self.group_id = "d8c9d397bea2ee37"
 

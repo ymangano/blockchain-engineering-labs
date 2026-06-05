@@ -1,4 +1,4 @@
-from chain.block import Block, create_genesis_block
+from chain.block import Block, create_genesis_block, BlockHeader
 from chain.mempool import Mempool
 from chain.transaction import Transaction
 
@@ -38,11 +38,11 @@ class Blockchain:
         """
         return self.chain[-1]
 
-    # def tip_hash(self) -> bytes:
-    #     """
-    #     Return hash of latest block.
-    #     """
-    #     return self.tip().block.hash()
+    def previous_hash(self) -> bytes:
+        """
+        Return hash of latest block.
+        """
+        return self.tip().header.block_hash()
 
     def get_block(self, height: int) -> Block | None:
         """
@@ -93,3 +93,26 @@ class Blockchain:
         self.mempool.remove_multiple_transactions(block.transactions)
 
         return True
+
+    def print_chain(self) -> None:
+        """
+        Pretty-print the entire blockchain.
+        """
+        print("\n========== BLOCKCHAIN ==========")
+
+        for height, block in enumerate(self.chain):
+            header = block.header
+
+            print(f"\n----- Block {height} -----")
+            print(f"Hash       : {header.block_hash().hex()}")
+            print(f"Prev Hash  : {header.prev_hash.hex()}")
+            print(f"Txs Hash   : {header.txs_hash.hex()}")
+            print(f"Timestamp  : {header.timestamp}")
+            print(f"Difficulty : {header.difficulty}")
+            print(f"Nonce      : {header.nonce}")
+            print(f"Tx Count   : {len(block.transactions)}")
+
+            for tx_index, tx in enumerate(block.transactions):
+                print(f"  TX {tx_index}: " f"{tx.tx_hash().hex()}")
+
+        print("\n===============================\n")
